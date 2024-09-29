@@ -10,24 +10,25 @@ app = Flask(__name__)
 def home():
     return "<p>Hello, World!</p>"
 
-@app.route("/upload", methods=["GET", "POST"])
+@app.route("/upload", methods=["POST"])
 def upload_file():
-    if request.method == "POST":
-        if request.is_json:
-            data = request.get_json()
-            file_name = data.get("filename")
-            file_content = data.get("object")
+    if request.is_json:
+        data = request.get_json()
+        print("Received payload:", data)  # Debugging: Print received payload
 
-            if not file_name or not file_content:
-                abort(400, description="Filename or file content is missing.")
+        file_name = data.get("filename")
+        file_content = data.get("object")
 
-            file_path = os.path.join(STORAGE_PATH, f"{file_name}.json")
-            with open(file_path, "w") as file:
-                json.dump(file_content, file)
+        # Empty content is acceptable, but filename is still required
+        if not file_name:
+            abort(400, description="Filename is missing.")
 
-            uploaded_files[file_name] = file_path
-            return jsonify({"status": "success", "file": file_name})
+        file_path = os.path.join(STORAGE_PATH, f"{file_name}.json")
+        with open(file_path, "w") as file:
+            json.dump(file_content, file)  # Store empty string if content is empty
 
+        uploaded_files[file_name] = file_path
+        return jsonify({"status": "success", "file": file_name}), 200
     return jsonify({"error": "This endpoint only supports POST with JSON data."}), 400
 
 @app.route("/<filename>", methods=["GET"])

@@ -13,13 +13,38 @@ class SimpleClient:
         self.commands = commands
 
     def send_file(self, file_name):
-        file_content = Path(f"{self.cache_dir}/{file_name}").read_text()
+        # Check if file exists in client storage
+        file_path = Path(f"{self.cache_dir}/{file_name}")
+        if not file_path.exists():
+            print(f"Error: {file_name} does not exist in the client storage.")
+            return
+
+        # Read the file content (empty content is acceptable)
+        try:
+            file_content = file_path.read_text(encoding="utf-8")
+        except Exception as e:
+            print(f"Error reading file {file_name}: {e}")
+            return
+
         base_file_name, _ = os.path.splitext(file_name)
-        file_payload = {"filename": base_file_name, "object": file_content, "extension": "txt"}
+
+        # Create the JSON payload as a Python dictionary
+        file_payload = {
+            "filename": base_file_name,   # This sends the filename without the extension
+            "object": file_content        # This sends the content of the file (even if empty)
+        }
+
+        print("Sending payload:", file_payload)  # Debugging: Print payload
+
+        # Send the payload as JSON using the requests library
         response = requests.post(
-            f"http://{self.server_address}:{self.port}/upload", json=json.dumps(file_payload)
+            f"http://{self.server_address}:{self.port}/upload", json=file_payload
         )
-        print(response)
+
+        if response.status_code == 200:
+            print(f"File '{file_name}' successfully uploaded.")
+        else:
+            print(f"Error uploading file: {response.text}")
 
     def receive_file(self, file_name):
         try:
@@ -36,38 +61,28 @@ class SimpleClient:
                 print(f"{file_name} downloaded and saved locally.")
                 return file_content
             else:
-                print(f"Error: unable to download {file_name} from server.")
+                print(f"Error: unable to download {file_name} from server. Status code: {response.status_code}")
         except Exception as e:
             print(f"Error while downloading file: {e}")
-
-    def get_dir_tree(self):
-        pass
-
-    def run_client(self):
-        while True:
-            user_input = input().split()
-            if user_input[0] not in self.commands or len(user_input) not in [1, 2]:
-                print("Unknown command! Available commands: <send>, <receive>")
-            elif len(user_input) == 1:
-                return self.get_dir_tree()
-            elif user_input[0] == "send":
-                return self.send_file(user_input[1])
-            elif user_input[0] == "open":
-                return self.receive_file(user_input[1])
-            else:
-                break
-        print("Shutting down client!")
 
 if __name__ == "__main__":
     client = SimpleClient(
         cache_dir="client_storage",
-        commands=["open", "send", "ll"],
         server_address="127.0.0.1",
         port=5000,
+        commands=["upload", "download"]
     )
 
-    if len(sys.argv) > 1:
-        file_to_download = sys.argv[1]
-        client.receive_file(file_to_download)
+    if len(sys.argv) < 3:
+        print("Usage: python client.py <upload/download> <filename>")
+        sys.exit(1)
+
+    command = sys.argv[1]
+    file_name = sys.argv[2]
+
+    if command == "upload":
+        client.send_file(file_name)
+    elif command == "download":
+        client.receive_file(file_name)
     else:
-        print("Please specify the file name to download as an argument.")
+        print("Unknown command! Use 'upload' or 'download'.")
