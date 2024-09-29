@@ -14,18 +14,18 @@ def home():
 def upload_file():
     if request.is_json:
         data = request.get_json()
-        print("Received payload:", data)  # Debugging: Print received payload
+        print("Received payload:", data) 
 
         file_name = data.get("filename")
         file_content = data.get("object")
 
-        # Empty content is acceptable, but filename is still required
+     
         if not file_name:
             abort(400, description="Filename is missing.")
 
         file_path = os.path.join(STORAGE_PATH, f"{file_name}.json")
         with open(file_path, "w") as file:
-            json.dump(file_content, file)  # Store empty string if content is empty
+            json.dump(file_content, file)  
 
         uploaded_files[file_name] = file_path
         return jsonify({"status": "success", "file": file_name}), 200

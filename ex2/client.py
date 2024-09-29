@@ -13,13 +13,13 @@ class SimpleClient:
         self.commands = commands
 
     def send_file(self, file_name):
-        # Check if file exists in client storage
+      
         file_path = Path(f"{self.cache_dir}/{file_name}")
         if not file_path.exists():
             print(f"Error: {file_name} does not exist in the client storage.")
             return
 
-        # Read the file content (empty content is acceptable)
+  
         try:
             file_content = file_path.read_text(encoding="utf-8")
         except Exception as e:
@@ -28,15 +28,13 @@ class SimpleClient:
 
         base_file_name, _ = os.path.splitext(file_name)
 
-        # Create the JSON payload as a Python dictionary
+       
         file_payload = {
-            "filename": base_file_name,   # This sends the filename without the extension
-            "object": file_content        # This sends the content of the file (even if empty)
+            "filename": base_file_name,   
+            "object": file_content        
         }
 
-        print("Sending payload:", file_payload)  # Debugging: Print payload
-
-        # Send the payload as JSON using the requests library
+        print("Sending payload:", file_payload)  
         response = requests.post(
             f"http://{self.server_address}:{self.port}/upload", json=file_payload
         )
