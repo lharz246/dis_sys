@@ -1,5 +1,4 @@
 import threading
-import time
 import json
 from queue import Queue
 import random
@@ -8,9 +7,9 @@ import random
 shared_queue = Queue(maxsize=10)
 
 class Producer:
-    def __init__(self, producer_id):
+    def __init__(self, producer_id, max_items=20):
         self.producer_id = producer_id
-        self.max_items = 20
+        self.max_items = max_items
 
     def produce_items(self, start_count=0):
         """Produces a specified number of items and adds them to the shared queue."""
@@ -18,8 +17,6 @@ class Producer:
         counter = start_count
         while counter < self.max_items:
             try:
-                # Simulate the production of an item with a random delay.
-                sleep_duration = random.uniform(0.1, 1.0)
                 item = {
                     "producer_id": self.producer_id,
                     "item": random.randint(0, 100)
@@ -31,12 +28,9 @@ class Producer:
                 print(f"Producer {self.producer_id} produced item: {item['item']}")
 
                 counter += 1
-                time.sleep(sleep_duration)
             except Exception as e:
                 print(f"Error in Producer {self.producer_id}: {e}")
         
-        # Signal the end of production for this producer.
-        shared_queue.put(None)
         print(f"Producer {self.producer_id} finished")
 
 def consume_items():
@@ -60,35 +54,43 @@ def consume_items():
         except Exception as e:
             print(f"Error in Consumer: {e}")
 
-# Create and start producer threads.
-producers = [Producer(i + 1) for i in range(3)]
-producer_threads = [
-    threading.Thread(target=producer.produce_items) for producer in producers
-]
+def run_producer_consumer_system(num_producers=3, num_consumers=2, max_items_per_producer=20):
+    """Runs a producer-consumer system with the specified number of producers and consumers."""
+    
+    # Create producer threads.
+    producers = [Producer(i + 1, max_items_per_producer) for i in range(num_producers)]
+    producer_threads = [
+        threading.Thread(target=producer.produce_items) for producer in producers
+    ]
 
-# Create and start consumer threads.
-consumer_threads = [
-    threading.Thread(target=consume_items) for _ in range(2)
-]
+    # Create consumer threads.
+    consumer_threads = [
+        threading.Thread(target=consume_items) for _ in range(num_consumers)
+    ]
 
-# Start all producer threads.
-for thread in producer_threads:
-    thread.start()
+    # Start all producer threads.
+    for thread in producer_threads:
+        thread.start()
 
-# Start all consumer threads.
-for thread in consumer_threads:
-    thread.start()
+    # Start all consumer threads.
+    for thread in consumer_threads:
+        thread.start()
 
-# Wait for all producer threads to finish.
-for thread in producer_threads:
-    thread.join()
+    # Wait for all producer threads to finish.
+    for thread in producer_threads:
+        thread.join()
 
-# Send termination signals to consumers once all producers are done.
-for _ in range(len(consumer_threads)):
-    shared_queue.put(None)
+    # Send a termination signal for each consumer.
+    for _ in range(num_consumers):
+        shared_queue.put(None)
 
-# Wait for all consumer threads to finish.
-for thread in consumer_threads:
-    thread.join()
+    # Wait for all consumer threads to finish.
+    for thread in consumer_threads:
+        thread.join()
 
-print("All producers and consumers have finished.")
+    print("All producers and consumers have finished.")
+
+# Example usage:
+if __name__ == "__main__":
+    # Configure the number of producers, consumers, and max items per producer.
+    run_producer_consumer_system(num_producers=2, num_consumers=1, max_items_per_producer=20)
