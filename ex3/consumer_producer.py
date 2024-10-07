@@ -1,50 +1,94 @@
 import threading
 import time
+import json
 from queue import Queue
 import random
 
-shared_queue = Queue()
-queue_lock = threading.Lock()
-
+# Shared queue for communication between producers and consumers, with a limit on its size.
+shared_queue = Queue(maxsize=10)
 
 class Producer:
+    def __init__(self, producer_id):
+        self.producer_id = producer_id
+        self.max_items = 20
 
-    def __init__(self, even, id):
-        self.even = even
-        self.id = id
-        self.item_counter = 10
+    def produce_items(self, start_count=0):
+        """Produces a specified number of items and adds them to the shared queue."""
+        print(f"Producer {self.producer_id} started")
+        counter = start_count
+        while counter < self.max_items:
+            try:
+                # Simulate the production of an item with a random delay.
+                sleep_duration = random.uniform(0.1, 1.0)
+                item = {
+                    "producer_id": self.producer_id,
+                    "item": random.randint(0, 100)
+                }
+                serialized_item = json.dumps(item)
 
-    def run(self, counter):
-        print(f"Producer {self.id} started")
-        while counter < self.item_counter:
-            sleeping = random.randint(0, 1)
-            item = {"id": self.id, "item": random.randint(0, 100)}
-            queue_lock.acquire(blocking=True)
-            shared_queue.put(item)
-            queue_lock.release()
-            counter += 1
-            time.sleep(sleeping)
+                # Add the item to the queue.
+                shared_queue.put(serialized_item)
+                print(f"Producer {self.producer_id} produced item: {item['item']}")
 
+                counter += 1
+                time.sleep(sleep_duration)
+            except Exception as e:
+                print(f"Error in Producer {self.producer_id}: {e}")
+        
+        # Signal the end of production for this producer.
+        shared_queue.put(None)
+        print(f"Producer {self.producer_id} finished")
 
-def consume():
-    print("start")
-    counter = 0
-    while counter < 20:
-        prodcued_item = shared_queue.get()
-        print(f"Producer: {prodcued_item['id']} sent {prodcued_item['item']}")
-        counter += 1
+def consume_items():
+    """Consumes items from the shared queue until a termination signal is received."""
+    print("Consumer started")
+    while True:
+        try:
+            # Retrieve an item from the queue.
+            serialized_item = shared_queue.get()
 
+            # Check for the termination signal.
+            if serialized_item is None:
+                print("Consumer received termination signal")
+                break
 
-prod1 = Producer(True, 1)
-prod2 = Producer(False, 2)
+            # Deserialize and process the item.
+            item = json.loads(serialized_item)
+            print(f"Consumer received item from Producer {item['producer_id']}: {item['item']}")
+        except json.JSONDecodeError:
+            print("Error decoding item, skipping...")
+        except Exception as e:
+            print(f"Error in Consumer: {e}")
 
-prod1_thread = threading.Thread(target=prod1.run, args=(0,))
-prod2_thread = threading.Thread(target=prod2.run, args=(0,))
-consumer_thread = threading.Thread(target=consume)
+# Create and start producer threads.
+producers = [Producer(i + 1) for i in range(3)]
+producer_threads = [
+    threading.Thread(target=producer.produce_items) for producer in producers
+]
 
-prod1_thread.start()
-prod2_thread.start()
-consumer_thread.start()
-prod1_thread.join()
-prod2_thread.join()
-consumer_thread.join()
+# Create and start consumer threads.
+consumer_threads = [
+    threading.Thread(target=consume_items) for _ in range(2)
+]
+
+# Start all producer threads.
+for thread in producer_threads:
+    thread.start()
+
+# Start all consumer threads.
+for thread in consumer_threads:
+    thread.start()
+
+# Wait for all producer threads to finish.
+for thread in producer_threads:
+    thread.join()
+
+# Send termination signals to consumers once all producers are done.
+for _ in range(len(consumer_threads)):
+    shared_queue.put(None)
+
+# Wait for all consumer threads to finish.
+for thread in consumer_threads:
+    thread.join()
+
+print("All producers and consumers have finished.")
