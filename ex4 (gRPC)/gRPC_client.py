@@ -1,40 +1,66 @@
-import grpc
-import greet_pb2
-import greet_pb2_grpc
+import json
+import struct
 import sys
 
+import grpc
+from concurrent import futures
+import chat_pb2
+import chat_pb2_grpc
+import server_pb2
+import server_pb2_grpc
+import threading
+import time
 
-def run(name, id):
-    # Connect to the server
+
+class ChatServicer(chat_pb2_grpc.ChatServicer):
+
+    def ReceiveMessages(self, request, context):
+        print(f"{request.sender} ({request.timestamp}): {request.message}")
+        return chat_pb2.ChatMessageResponse(message=1)
+
+    def SendMessage(self, request, context, message, name):
+        timestemp = time.time()
+        return chat_pb2.ChatMessage(message=message, sender=name, timestemp=timestemp)
+
+
+def main(name, port):
+    address = f"localhost:{port}"
+    chat_server = grpc.server(futures.ThreadPoolExecutor(max_workers=5))
+    chat_pb2_grpc.add_ChatServicer_to_server(ChatServicer(), chat_server)
+    chat_server.add_insecure_port(f"[::]:{port}")
+    chat_server.start()
     with grpc.insecure_channel("localhost:50051") as channel:
-        # Create a stub (client)
-        stub = greet_pb2_grpc.GreeterStub(channel)
-        # Create a GreetRequest message
-        request = greet_pb2.GreetRequest(name=name)
-        # Call the Greet method
+        stub = server_pb2_grpc.ServerStub(channel)
+        request = server_pb2.GreetRequest(name=name, address=address)
         response = stub.Greet(request)
-        # Print the response
-        print(f"Client {id} received: {response.message}")
+        print(f"Client {name} received: {response.message}")
+        # Read the sender's name
+        stay_connected = True
+        while stay_connected:
+            start_chat = input("Want to chat p2p?\n>:")
+            if start_chat == "yes":
+                print("Requesting possible chat...")
+                request = server_pb2.ClientRequest(name=name)
+                response = stub.Client(request)
+                print(response.address_name)
+                address_names = json.loads(response.address_name)
+                print(address_names)
+                selection_dict = {}
+                for idx, (name, address) in enumerate(address_names.items()):
+                    selection_dict[idx] = (name, address)
+                    print(f"{idx}) {name}: {address}")
+                chat_selection = input("Enter chat partners name: ")
+                if chat_selection != "None":
+                    with grpc.insecure_channel(selection_dict[int(chat_selection)][1]) as chat_channel:
+                        chat_stub = chat_pb2_grpc.ChatStub(chat_channel)
+                        print(f"P2P ChatRoom with {selection_dict[int(chat_selection)][0]}")
+                        p2p_chat = True
+                    while p2p_chat:
 
 
-def chat():
-    with grpc.insecure_channel("localhost:50051") as channel:
-        stub = greet_pb2_grpc.GreeterStub(channel)
-
-        # Create a generator for sending chat messages
-        def request_generator():
-            while True:
-                message = input("Enter message: ")
-                yield greet_pb2.ChatMessage(sender="Client 1", message=message)
-
-        # Call the Chat method and get the response stream
-        responses = stub.Chat(request_generator())
-        for response in responses:
-            print(f"Server responded: {response.message}")
 
 
 if __name__ == "__main__":
     name = sys.argv[1]
-    id = sys.argv[2]
-    run(name, id)
-    chat()
+    port = sys.argv[2]
+    main(name, port)
