@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-
 import sys
 import time
-import logging
 import os
 import signal
 from datetime import datetime
@@ -11,65 +9,71 @@ from watchdog.events import FileSystemEventHandler
 import daemon
 import daemon.pidfile
 import lockfile
+import syslog
 
 # Get the current user's home directory
 HOME_DIR = os.path.expanduser('~')
-
-# Configure paths using local directories
 BASE_DIR = os.path.join(HOME_DIR, '.directory_monitor')
 MONITOR_DIR = os.path.join(BASE_DIR, 'monitored')
-LOG_FILE = os.path.join(BASE_DIR, 'directory_monitor.log')
 PID_FILE = os.path.join(BASE_DIR, 'directory_monitor.pid')
 
 # Create necessary directories
 os.makedirs(BASE_DIR, exist_ok=True)
 os.makedirs(MONITOR_DIR, exist_ok=True)
 
-# Configure logging
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
 class FileEventHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            logging.info(f"New file detected: {event.src_path} at {timestamp}")
+            message = f"New file detected: {event.src_path} at {timestamp}"
+            syslog.syslog(syslog.LOG_INFO, message)
+            
+    def on_modified(self, event):
+        if not event.is_directory:
+            message = f"File modified: {event.src_path}"
+            syslog.syslog(syslog.LOG_INFO, message)
+            
+    def on_deleted(self, event):
+        if not event.is_directory:
+            message = f"File deleted: {event.src_path}"
+            syslog.syslog(syslog.LOG_INFO, message)
+            
+    def on_moved(self, event):
+        if not event.is_directory:
+            message = f"File renamed from {event.src_path} to {event.dest_path}"
+            syslog.syslog(syslog.LOG_INFO, message)
 
 def monitor_directory():
-    # Verify the monitored directory exists
     if not os.path.exists(MONITOR_DIR):
-        logging.error(f"Monitor directory {MONITOR_DIR} does not exist!")
+        syslog.syslog(syslog.LOG_ERR, f"Monitor directory {MONITOR_DIR} does not exist!")
         sys.exit(1)
     
-    # Initialize the file system observer and event handler
     event_handler = FileEventHandler()
     observer = Observer()
     observer.schedule(event_handler, MONITOR_DIR, recursive=False)
     
     try:
-        logging.info(f"Starting directory monitor daemon for: {MONITOR_DIR}")
+        message = f"Starting directory monitor for: {MONITOR_DIR}"
+        syslog.syslog(syslog.LOG_INFO, message)
         observer.start()
         
-        # Keep the script running
         while True:
             time.sleep(1)
             
     except KeyboardInterrupt:
         observer.stop()
-        logging.info("Directory monitor daemon stopped")
+        syslog.syslog(syslog.LOG_INFO, "Monitor stopped by user")
     except Exception as e:
-        logging.error(f"Error in monitor_directory: {str(e)}")
+        syslog.syslog(syslog.LOG_ERR, f"Error in monitor_directory: {str(e)}")
         observer.stop()
         raise
-    
-    observer.join()
+    finally:
+        observer.join()
 
 def run_daemon():
-    # Context manager for daemonization
+    # Open syslog connection
+    syslog.openlog('directory-monitor', syslog.LOG_PID, syslog.LOG_DAEMON)
+    
     context = daemon.DaemonContext(
         working_directory=MONITOR_DIR,
         umask=0o002,
@@ -77,33 +81,14 @@ def run_daemon():
         detach_process=True
     )
     
-    # Open the context and run the monitor
-    with context:
-        monitor_directory()
-
-def verify_environment():
-    """Verify that all necessary files and directories exist with correct permissions"""
     try:
-        # Check monitor directory
-        if not os.path.exists(MONITOR_DIR):
-            print(f"Error: Monitor directory {MONITOR_DIR} does not exist!")
-            return False
-            
-        # Verify write permissions
-        if not os.access(MONITOR_DIR, os.W_OK):
-            print(f"Error: No write permission for {MONITOR_DIR}")
-            return False
-        if not os.access(os.path.dirname(LOG_FILE), os.W_OK):
-            print(f"Error: No write permission for {os.path.dirname(LOG_FILE)}")
-            return False
-        if not os.access(os.path.dirname(PID_FILE), os.W_OK):
-            print(f"Error: No write permission for {os.path.dirname(PID_FILE)}")
-            return False
-            
-        return True
+        with context:
+            monitor_directory()
     except Exception as e:
-        print(f"Error during environment verification: {str(e)}")
-        return False
+        syslog.syslog(syslog.LOG_ERR, f"Error in daemon context: {str(e)}")
+        raise
+    finally:
+        syslog.closelog()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -113,27 +98,28 @@ if __name__ == "__main__":
     command = sys.argv[1].lower()
     
     if command == "start":
-        if not verify_environment():
-            print("Environment verification failed. Please check directory permissions.")
-            sys.exit(1)
         try:
-            print(f"Starting daemon. Monitor directory: {MONITOR_DIR}")
-            print(f"Log file: {LOG_FILE}")
-            print(f"PID file: {PID_FILE}")
+            syslog.openlog('directory-monitor', syslog.LOG_PID, syslog.LOG_DAEMON)
+            syslog.syslog(syslog.LOG_INFO, "Starting directory monitor daemon")
             run_daemon()
         except lockfile.AlreadyLocked:
             print("Daemon is already running")
             sys.exit(1)
         except Exception as e:
             print(f"Error starting daemon: {str(e)}")
+            syslog.syslog(syslog.LOG_ERR, f"Error starting daemon: {str(e)}")
             sys.exit(1)
-    
+        finally:
+            syslog.closelog()
+            
     elif command == "stop":
         try:
+            syslog.openlog('directory-monitor', syslog.LOG_PID, syslog.LOG_DAEMON)
             with open(PID_FILE, 'r') as f:
                 pid = int(f.read())
             os.kill(pid, signal.SIGTERM)
             os.remove(PID_FILE)
+            syslog.syslog(syslog.LOG_INFO, "Daemon stopped")
             print("Daemon stopped")
         except FileNotFoundError:
             print("Daemon not running (PID file not found)")
@@ -145,24 +131,20 @@ if __name__ == "__main__":
             sys.exit(1)
         except Exception as e:
             print(f"Error stopping daemon: {str(e)}")
+            syslog.syslog(syslog.LOG_ERR, f"Error stopping daemon: {str(e)}")
             sys.exit(1)
-    
+        finally:
+            syslog.closelog()
+            
     elif command == "status":
         try:
             with open(PID_FILE, 'r') as f:
                 pid = int(f.read())
             # Check if process is running
-            os.kill(pid, 0)  # This will raise an error if process is not running
+            os.kill(pid, 0)
             print(f"Daemon is running with PID {pid}")
-            # Show last few log entries
-            try:
-                with open(LOG_FILE, 'r') as f:
-                    last_lines = f.readlines()[-5:]
-                print("\nLast 5 log entries:")
-                for line in last_lines:
-                    print(line.strip())
-            except FileNotFoundError:
-                print("Log file not found")
+            print("\nLast 5 syslog entries for directory-monitor:")
+            os.system("grep directory-monitor /var/log/syslog | tail -n 5")
         except FileNotFoundError:
             print("Daemon not running (PID file not found)")
         except ProcessLookupError:
@@ -171,7 +153,6 @@ if __name__ == "__main__":
                 os.remove(PID_FILE)
         except Exception as e:
             print(f"Error checking daemon status: {str(e)}")
-    
     else:
         print("Unknown command. Use 'start', 'stop', or 'status'")
         sys.exit(1)
