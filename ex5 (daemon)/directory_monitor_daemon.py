@@ -22,26 +22,25 @@ os.makedirs(BASE_DIR, exist_ok=True)
 os.makedirs(MONITOR_DIR, exist_ok=True)
 
 class FileEventHandler(FileSystemEventHandler):
+    def __init__(self):
+        super().__init__()
+        syslog.openlog("directory-monitor", syslog.LOG_PID)
+        
     def on_created(self, event):
         if not event.is_directory:
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            message = f"New file detected: {event.src_path} at {timestamp}"
-            syslog.syslog(syslog.LOG_INFO, message)
+            syslog.syslog(syslog.LOG_INFO, f"File created: {os.path.basename(event.src_path)}")
             
     def on_modified(self, event):
         if not event.is_directory:
-            message = f"File modified: {event.src_path}"
-            syslog.syslog(syslog.LOG_INFO, message)
+            syslog.syslog(syslog.LOG_INFO, f"File modified: {os.path.basename(event.src_path)}")
             
     def on_deleted(self, event):
         if not event.is_directory:
-            message = f"File deleted: {event.src_path}"
-            syslog.syslog(syslog.LOG_INFO, message)
+            syslog.syslog(syslog.LOG_INFO, f"File deleted: {os.path.basename(event.src_path)}")
             
     def on_moved(self, event):
         if not event.is_directory:
-            message = f"File renamed from {event.src_path} to {event.dest_path}"
-            syslog.syslog(syslog.LOG_INFO, message)
+            syslog.syslog(syslog.LOG_INFO, f"File renamed: {os.path.basename(event.src_path)} to {os.path.basename(event.dest_path)}")
 
 def monitor_directory():
     if not os.path.exists(MONITOR_DIR):
@@ -53,8 +52,7 @@ def monitor_directory():
     observer.schedule(event_handler, MONITOR_DIR, recursive=False)
     
     try:
-        message = f"Starting directory monitor for: {MONITOR_DIR}"
-        syslog.syslog(syslog.LOG_INFO, message)
+        syslog.syslog(syslog.LOG_INFO, f"Starting directory monitor for: {MONITOR_DIR}")
         observer.start()
         
         while True:
@@ -71,9 +69,6 @@ def monitor_directory():
         observer.join()
 
 def run_daemon():
-    # Open syslog connection
-    syslog.openlog('directory-monitor', syslog.LOG_PID, syslog.LOG_DAEMON)
-    
     context = daemon.DaemonContext(
         working_directory=MONITOR_DIR,
         umask=0o002,
@@ -81,14 +76,8 @@ def run_daemon():
         detach_process=True
     )
     
-    try:
-        with context:
-            monitor_directory()
-    except Exception as e:
-        syslog.syslog(syslog.LOG_ERR, f"Error in daemon context: {str(e)}")
-        raise
-    finally:
-        syslog.closelog()
+    with context:
+        monitor_directory()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -96,10 +85,10 @@ if __name__ == "__main__":
         sys.exit(1)
 
     command = sys.argv[1].lower()
+    syslog.openlog("directory-monitor", syslog.LOG_PID)
     
     if command == "start":
         try:
-            syslog.openlog('directory-monitor', syslog.LOG_PID, syslog.LOG_DAEMON)
             syslog.syslog(syslog.LOG_INFO, "Starting directory monitor daemon")
             run_daemon()
         except lockfile.AlreadyLocked:
@@ -109,12 +98,9 @@ if __name__ == "__main__":
             print(f"Error starting daemon: {str(e)}")
             syslog.syslog(syslog.LOG_ERR, f"Error starting daemon: {str(e)}")
             sys.exit(1)
-        finally:
-            syslog.closelog()
             
     elif command == "stop":
         try:
-            syslog.openlog('directory-monitor', syslog.LOG_PID, syslog.LOG_DAEMON)
             with open(PID_FILE, 'r') as f:
                 pid = int(f.read())
             os.kill(pid, signal.SIGTERM)
@@ -133,8 +119,6 @@ if __name__ == "__main__":
             print(f"Error stopping daemon: {str(e)}")
             syslog.syslog(syslog.LOG_ERR, f"Error stopping daemon: {str(e)}")
             sys.exit(1)
-        finally:
-            syslog.closelog()
             
     elif command == "status":
         try:
@@ -143,8 +127,8 @@ if __name__ == "__main__":
             # Check if process is running
             os.kill(pid, 0)
             print(f"Daemon is running with PID {pid}")
-            print("\nLast 5 syslog entries for directory-monitor:")
-            os.system("grep directory-monitor /var/log/syslog | tail -n 5")
+            print("\nLast log entries:")
+            os.system("sudo grep 'directory-monitor' /var/log/messages | tail -n 5")
         except FileNotFoundError:
             print("Daemon not running (PID file not found)")
         except ProcessLookupError:
