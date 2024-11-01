@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import sys
 import time
 import os
@@ -11,16 +10,16 @@ import daemon.pidfile
 import lockfile
 import syslog
 
-# Get the current user's home directory
+#setup dirs
 HOME_DIR = os.path.expanduser('~')
 BASE_DIR = os.path.join(HOME_DIR, '.directory_monitor')
 MONITOR_DIR = os.path.join(BASE_DIR, 'monitored')
 PID_FILE = os.path.join(BASE_DIR, 'directory_monitor.pid')
-
-# Create necessary directories
 os.makedirs(BASE_DIR, exist_ok=True)
 os.makedirs(MONITOR_DIR, exist_ok=True)
 
+
+#event listeners
 class FileEventHandler(FileSystemEventHandler):
     def __init__(self):
         super().__init__()
@@ -58,9 +57,6 @@ def monitor_directory():
         while True:
             time.sleep(1)
             
-    except KeyboardInterrupt:
-        observer.stop()
-        syslog.syslog(syslog.LOG_INFO, "Monitor stopped by user")
     except Exception as e:
         syslog.syslog(syslog.LOG_ERR, f"Error in monitor_directory: {str(e)}")
         observer.stop()
