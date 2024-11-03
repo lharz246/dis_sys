@@ -1,33 +1,4 @@
-
-## 📋 Prerequisites
-
-1. Python 3.x
-2. Python dependencies:
-```bash
-pip install python-daemon watchdog
-```
-
-3. rsyslog (usually pre-installed on Linux systems):
-```bash
-
-4. Start rsyslog if it's not already running:
-```bash
-sudo systemctl start rsyslog
-sudo systemctl enable rsyslog  # To start at boot
-```
-
-## 🚀 Installation
-
-1. Clone or copy the files to your system:
-   - `directory_monitor_daemon.py` (main daemon)
-   - `test_monitor.py` (test script)
-
-2. Make the scripts executable:
-```bash
-chmod +x directory_monitor_daemon.py test_monitor.py
-```
-
-## 🔧 Directory Structure
+## Directory Structure
 
 The daemon automatically creates this structure:
 ```
@@ -36,7 +7,7 @@ The daemon automatically creates this structure:
 └── directory_monitor.pid  # Daemon PID file
 ```
 
-## 📖 Using the Daemon
+## Using the Daemon
 
 ### Starting the Daemon
 ```bash
@@ -53,7 +24,7 @@ The daemon automatically creates this structure:
 ./directory_monitor_daemon.py stop
 ```
 
-## 🧪 Testing the Daemon
+## Testing the Daemon
 
 ### Manual Testing
 1. Start the daemon:
@@ -92,7 +63,6 @@ crontab -e
 0 10,16 * * * /full/path/to/test_monitor.py
 ```
 
-## 📊 Viewing Logs
 
 ### View Recent Logs
 ```bash
@@ -118,16 +88,3 @@ sudo tail -f /var/log/messages | grep "directory-monitor"
 sudo grep "directory-monitor" /var/log/messages
 ```
 
-## 📋 Monitored Events
-
-The daemon logs the following events:
-- 📝 File creation
-- ✏️ File modification
-- 🔄 File renaming
-- 🗑️ File deletion
-
-Each event is logged with:
-- Timestamp
-- Event type
-- Filename
-- Daemon process PID
