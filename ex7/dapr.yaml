@@ -1,0 +1,8 @@
+
+version: 1
+common:
+  resourcesPath: ./
+apps:
+  - appID: dis_storage
+    appDirPath: ./dis_storage/
+    command: ["python3" , "app.py"]
