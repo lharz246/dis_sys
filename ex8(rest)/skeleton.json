@@ -1,0 +1,9 @@
+{
+  "type": "request_type",
+  "location": "location",
+  "forecast_details": "forecast_details",
+  "time_frame" : "empty",
+  "day_format" : "empty",
+  "current_condition" : "empty",
+  "forecast": "forecast"
+}
