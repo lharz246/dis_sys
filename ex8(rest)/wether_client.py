@@ -28,16 +28,16 @@ def print_weather_info(weather_info):
     forecast = weather_info["forecast"]
     print(
         f"#########{Fore.GREEN}CURRENT WEATHER{Style.RESET_ALL}#########\n{location['name']}, {location['state']}, {location['country']}, {time_stamp}\n"
-        f"currently: {Fore.MAGENTA}{current_condition['weather']}{Style.RESET_ALL} temperature: {Fore.GREEN}{current_condition['temp']}{degree_sign}C{Style.RESET_ALL}\n"
+        f"currently: {Fore.MAGENTA}{current_condition['weather']}{Style.RESET_ALL} temperature: {Fore.GREEN}{current_condition['temp']:.2f}{degree_sign}C{Style.RESET_ALL}\n"
         f"feels_like: {Fore.YELLOW}{current_condition['feel_temp']}{Style.RESET_ALL} max_temp: {Fore.RED}{current_condition['max_temp']}{degree_sign}C{Style.RESET_ALL}\n"
-        f"humidity: {Fore.BLUE}{current_condition['humidity']}{Style.RESET_ALL}  min_temp: {Fore.CYAN}{current_condition['temp']}{degree_sign}C{Style.RESET_ALL}\n"
+        f"humidity: {Fore.BLUE}{current_condition['humidity']}{Style.RESET_ALL}  min_temp: {Fore.CYAN}{current_condition['min_temp']}{degree_sign}C{Style.RESET_ALL}\n"
     )
     for k, v in forecast.items():
         print(
             f"{location['name']}, {location['state']}, {location['country']}, {k}\n"
-            f"Temperature: {Fore.MAGENTA}{v['weather']}{Style.RESET_ALL} temperature: {Fore.GREEN}{v['temp']}{degree_sign}C{Style.RESET_ALL}\n"
+            f"Temperature: {Fore.MAGENTA}{v['weather']}{Style.RESET_ALL} temperature: {Fore.GREEN}{v['temp']:.2f}{degree_sign}C{Style.RESET_ALL}\n"
             f"feels_like: {Fore.YELLOW}{v['feel_temp']}{Style.RESET_ALL} max_temp: {Fore.RED}{v['max_temp']}{degree_sign}C{Style.RESET_ALL}\n"
-            f"humidity: {Fore.BLUE}{v['humidity']}{Style.RESET_ALL}  min_temp: {Fore.CYAN}{v['temp']}{degree_sign}C{Style.RESET_ALL}\n"
+            f"humidity: {Fore.BLUE}{v['humidity']}{Style.RESET_ALL}  min_temp: {Fore.CYAN}{v['min_temp']}{degree_sign}C{Style.RESET_ALL}\n"
         )
 
 
